@@ -94,7 +94,7 @@ function ck(a,b){return 'p'+[a,b].sort().join('_')}
 function bdg(x){return (x.owned||[]).map(function(id){var r=db.rewards.find(function(q){return q.id==id});return r?r.icon:''}).join('')}
 function nav(){var i=[['home','🏠','Home'],['games','🎮','Games'],['shop','🎁','Rewards'],['board','🏆','Board'],['wallet','👛','Wallet'],['chat','💬','Chat']];
  return '<nav>'+i.map(function(x){return '<button class="'+(S.scr==x[0]?'on':'')+'" data-a="go" data-v="'+x[0]+'"><i>'+x[1]+'</i>'+x[2]+'</button>'}).join('')+'</nav>'}
-function gameCard(g){return '<div class="game"><div class="ic">'+esc(g.icon)+'</div><b>'+esc(g.name)+'</b><small>'+(g.type=='runner'?'up to ':g.type=='ludo'||g.type=='chess'||g.type=='candy'||g.type=='arrow'||g.type=='water'||g.type=='flow'||g.type=='pickup'||g.type=='crowd'?'win ':'')+'+'+g.reward+' coins'+(GK[g.type]?' · Level '+gLvl(user(S.me),g.type)+'/'+GLMAX:'')+'</small><button class="btn s" data-a="play" data-v="'+g.id+'">Play</button></div>'}
+function gameCard(g){return '<div class="game"><div class="ic">'+esc(g.icon)+'</div><b>'+esc(g.name)+'</b><small>'+gSmall(g)+'</small><button class="btn s" data-a="play" data-v="'+g.id+'">Play</button></div>'}
 function txList(u,n,f){return u.tx.filter(function(t){return !f||f=='All'||(f=='Earned'&&t.amt>0)||(f=='Spent'&&t.amt<0)}).slice(0,n||50).map(function(t){return '<div class="tx row"><div><b>'+esc(t.type)+'</b><div class="muted">'+esc(t.note)+' · '+esc(t.t)+'</div><div class="muted">ID '+t.id+'</div></div><b class="'+(t.amt>=0?'plus':'minus')+'">'+(t.amt>=0?'+':'')+t.amt+'</b></div>'}).join('')||'<p class="muted">No transactions yet. Play a game to earn your first coins.</p>'}
 function chatBox(uid,who){var m=(db.chats[uid]||[]).map(function(c){return '<div class="msg '+(c.from==who?'me':'them')+'">'+esc(c.text)+'<div class="muted" style="font-size:10px">'+c.t+'</div></div>'}).join('')||'<p class="muted">No messages yet.</p>';
  return '<div class="card chat" id="chatbox">'+m+'</div><div class="row"><input id="cin" placeholder="Type a message"><button class="btn" data-a="send">Send</button></div>'}
@@ -161,10 +161,10 @@ function rEnd(quit){var R=S.R;if(!R)return;cancelAnimationFrame(R.raf);document.
 var LV_MAX=10,LV_GAMES=5,LV_PTS=2;
 function lvOf(u){return Math.min(LV_MAX,1+Math.floor((u.gp||0)/LV_GAMES))}
 function lvP(){return db.lvpts==null?LV_PTS:db.lvpts}
-function lvDone(u,g){var lv=lvOf(u),b=lvP()*lv,nl;u.cd=u.cd||{};u.cd[g.id]=Date.now();u.gp=(u.gp||0)+1;if(b>0)tx(u,'Level bonus',b,'Level '+lv+' · '+g.name);nl=lvOf(u);u.lv=nl;save();
- return (b>0?' Level bonus +'+b+' coins':'')+(nl>lv?' · 🎉 Level up! You are now Level '+nl:'')+'.'}
+function lvDone(u,g){var lv=lvOf(u),nl;u.cd=u.cd||{};u.cd[g.id]=Date.now();u.gp=(u.gp||0)+1;nl=lvOf(u);u.lv=nl;save();
+ return nl>lv?' 🎉 Level up! You are now Level '+nl+'.':''}
 function lvCard(u){var l=lvOf(u),mx=l>=LV_MAX,dn=(u.gp||0)%LV_GAMES;
- return '<div class="card"><div class="row"><b>⭐ Level '+l+' / '+LV_MAX+'</b><span class="muted">'+(lvP()?'+'+lvP()*l+' coins every game':'No level bonus')+'</span></div><div style="height:8px;background:#0f1a13;border-radius:8px;overflow:hidden;margin:8px 0 4px"><div style="height:100%;width:'+(mx?100:dn/LV_GAMES*100)+'%;background:var(--y)"></div></div><div class="muted">'+(mx?'Max level reached':(LV_GAMES-dn)+' more games to reach Level '+(l+1))+'</div></div>'}
+ return '<div class="card"><div class="row"><b>⭐ Level '+l+' / '+LV_MAX+'</b><span class="muted">'+'Play games to level up'+'</span></div><div style="height:8px;background:#0f1a13;border-radius:8px;overflow:hidden;margin:8px 0 4px"><div style="height:100%;width:'+(mx?100:dn/LV_GAMES*100)+'%;background:var(--y)"></div></div><div class="muted">'+(mx?'Max level reached':(LV_GAMES-dn)+' more games to reach Level '+(l+1))+'</div></div>'}
 /*LEVEL_END*/
 /*GLV_START*/
 var GLMAX=1000,GK={water:'wl',flow:'fl',pickup:'pl',crowd:'cl',candy:'kl',arrow:'al',chess:'chl',ludo:'ll'};
@@ -174,6 +174,18 @@ function gHard(lv){return lv<=20?0:Math.min(1,(lv-20)/180)}
 function gAiRand(lv){return lv<=20?.8-.35*(Math.max(1,lv)-1)/19:.45*Math.max(0,1-(lv-20)/180)}
 function gWin(u,t,lv){if(u&&GK[t])u[GK[t]]=Math.max(u[GK[t]]||0,lv)}
 function gEnd(g,win,lv){return '<button class="btn" style="width:100%" data-a="gnext" data-v="'+g.id+'">'+(win?(lv>=GLMAX?'Replay Level '+GLMAX+' 🔁':'Next Level '+(lv+1)+' ▶'):'Try Again 🔄')+'</button><button class="btn o" style="width:100%;margin-top:8px" data-a="close">Exit</button>'}
+function gFull(g){return Math.max(1,Math.min(GLMAX,parseInt(g.full)||10))}
+function gGive(u,g,note){var r={earn:0,coupon:'',msg:''};if(g.reward>0){r.earn=g.reward;tx(u,'Game reward',g.reward,note)}
+ if(g.coupon){r.coupon=g.coupon;(u.coupons=u.coupons||[]).push({code:g.coupon,game:g.name,t:new Date().toLocaleString()});save()}return r}
+function gPay(u,g,lv,note){var f=gFull(g),r={earn:0,coupon:'',msg:''};if(!u)return r;u.done=u.done||{};
+ if(lv<f){r.msg=' Level '+lv+' cleared. Finish Level '+f+' to get your reward ('+(f-lv)+' more to go).';return r}
+ if(u.done[g.id]){r.msg=' You already got the full game reward.';return r}
+ u.done[g.id]=1;r=gGive(u,g,note);r.msg=' Full game completed!';save();return r}
+function gTxt(p){return p.earn?'+'+p.earn+' coins 🎉':p.coupon?'Coupon unlocked 🎟️':'Level cleared ✅'}
+function gSub(p){return (p.earn?'Coins added to your wallet.':'')+(p.coupon?' 🎟️ Your coupon code: '+p.coupon+' (saved in Wallet).':'')+p.msg}
+function gSmall(g){var u=user(S.me);if(!GK[g.type])return '+'+g.reward+' coins'+(g.coupon?' + 🎟️':'');var f=gFull(g),lv=gLvl(u,g.type),dn=u&&u.done&&u.done[g.id];
+ return (dn?'✅ Completed · ':'Level '+Math.min(lv,f)+' / '+f+' · ')+'reward '+(g.reward>0?g.reward+' coins':'')+(g.reward>0&&g.coupon?' + ':'')+(g.coupon?'🎟️ coupon':'')+(g.reward>0||g.coupon?'':'none')}
+function couponCard(u){var c=u.coupons||[];return '<div class="card"><h3>🎟️ My coupons</h3>'+(c.length?c.map(function(x){return '<div class="tx row"><div><b style="letter-spacing:1px">'+esc(x.code)+'</b><div class="muted">'+esc(x.game)+' · '+esc(x.t)+'</div></div></div>'}).join(''):'<p class="muted">Finish a full game to win a coupon code.</p>')+'</div>'}
 function gStart(g){var t=g.type;if(t=='ludo'){S.LG=g;lMenu()}else if(t=='chess')cStart(g);else if(t=='candy')kStart(g);else if(t=='arrow')aStart(g);else if(t=='water')wStart(g);else if(t=='flow')fStart(g);else if(t=='pickup')pkStart(g);else if(t=='crowd')cwStart(g)}
 /*GLV_END*/
 
@@ -276,10 +288,10 @@ function lLand(ti){var L=S.L;if(!L)return;var pi=L.turn,tk=L.tk[pi],np=tk[ti],ca
  lMsg(caps.length?'Captured a token! Roll again.':np==56?'Token reached home! Roll again.':L.roll==6?'Rolled a 6. Roll again.':'');
  lT(function(){lEnd(extra)},caps.length?900:500)}
 function lEnd(extra){var L=S.L;if(!L)return;if(!extra)L.turn=(L.turn+1)%L.P.length;lBegin()}
-function lWin(wi){var L=S.L;S.L=null;lFs(false);var ci=L.P[wi],u=user(S.me),earn=0,you=L.mode!='f'&&wi==0,lvn=gLvl(u,'ludo');
- if(you&&u){earn=L.g.reward;tx(u,'Game reward',earn,L.g.name+' · Level '+lvn);gWin(u,'ludo',lvn);u.cd=u.cd||{};u.cd[L.g.id]=Date.now();save()}
+function lWin(wi){var L=S.L;S.L=null;lFs(false);var ci=L.P[wi],u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},you=L.mode!='f'&&wi==0,lvn=gLvl(u,'ludo');
+ if(you&&u){gWin(u,'ludo',lvn);pay=gPay(u,L.g,lvn,L.g.name+' · Level '+lvn);earn=pay.earn;u.cd=u.cd||{};u.cd[L.g.id]=Date.now();save()}
  lDrawFinal(L);var lv=(L.mode!='f'&&u)?lvDone(u,L.g):'';
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>'+(you?'You won! +'+earn+' coins 🎉':(L.mode=='f'?LN[ci]+' wins!':LN[ci]+' (CPU) wins'))+'</h2><p class="muted" style="margin:8px 0">'+(you?'Coins added to your wallet.':(L.mode=='f'?'Well played!':'Better luck next time.'))+lv+'</p>'+gEnd(L.g,you,lvn)+'</div></div>'}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>'+(you?'You won! '+gTxt(pay):(L.mode=='f'?LN[ci]+' wins!':LN[ci]+' (CPU) wins'))+'</h2><p class="muted" style="margin:8px 0">'+(you?gSub(pay):(L.mode=='f'?'Well played!':'Better luck next time.'))+lv+'</p>'+gEnd(L.g,you,lvn)+'</div></div>'}
 function lDrawFinal(){}
 function lQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;lFs(false);S.L=null;$('#ov').innerHTML='';render()}
 /*LUDO_END*/
@@ -347,10 +359,10 @@ function cPlay(m){var C=S.C,w=C.P.turn=='w';C.P=cApp(C.P,m);C.last=[m.f,m.t];C.s
  var st=cState(C.P);if(st){cFin(st,w);return}
  if(w){C.busy=true;C.msg='Computer is thinking...';cDraw();cT(function(){cPlay(cBest(S.C.P,S.C.lv))},450)}
  else{C.busy=false;C.msg=cChk(C.P)?'Check! Your move.':'Your turn (White)';cDraw()}}
-function cFin(st,mw){var C=S.C;S.C=null;var u=user(S.me),win=st=='mate'&&mw,earn=0,lv=u?lvDone(u,C.g):'';
- if(win&&u){earn=C.g.reward;tx(u,'Game reward',earn,C.g.name+' · Level '+C.lv);gWin(u,'chess',C.lv);u.cd=u.cd||{};u.cd[C.g.id]=Date.now();save()}
+function cFin(st,mw){var C=S.C;S.C=null;var u=user(S.me),win=st=='mate'&&mw,earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,C.g):'';
+ if(win&&u){gWin(u,'chess',C.lv);pay=gPay(u,C.g,C.lv,C.g.name+' · Level '+C.lv);earn=pay.earn;u.cd=u.cd||{};u.cd[C.g.id]=Date.now();save()}
  var t=st=='mate'?(mw?'Checkmate! You won':'Checkmate. Computer wins'):st=='stale'?'Draw by stalemate':'Draw';
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'♟️')+'</div><h2>'+(win?'You won! +'+earn+' coins 🎉':t)+'</h2><p class="muted" style="margin:8px 0">'+(win?'Coins added to your wallet.':'Better luck next time.')+lv+'</p>'+gEnd(C.g,win,C.lv)+'</div></div>'}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'♟️')+'</div><h2>'+(win?'You won! '+gTxt(pay):t)+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'Better luck next time.')+lv+'</p>'+gEnd(C.g,win,C.lv)+'</div></div>'}
 function cQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;S.C=null;$('#ov').innerHTML='';render()}
 /*CHESS_END*/
 /*CANDY_START*/
@@ -410,9 +422,9 @@ function kCasc(n){var K=S.K,ms=kMatches(K.b);
  var big=kBig(K.b);
  K.score+=ms.length*10*n;K.msg=big.length?'💣 Super Bomb made! Tap it to blast the whole board.':n>1?'Combo x'+n+'!':'';K.clr={};ms.forEach(function(i){K.clr[i]=1});kDraw();
  kT(function(){ms.forEach(function(i){K.b[i]=-1});big.forEach(function(i){K.b[i]=6});kFall(K.b);K.clr={};kDraw();kT(function(){kCasc(n+1)},250)},260)}
-function kFin(win){var K=S.K;S.K=null;var u=user(S.me),earn=0,lv=u?lvDone(u,K.g):'';
- if(win&&u){earn=K.g.reward;tx(u,'Game reward',earn,K.g.name+' · Level '+K.lv);gWin(u,'candy',K.lv);u.cd=u.cd||{};u.cd[K.g.id]=Date.now();save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'🍬')+'</div><h2>'+(win?'You won! +'+earn+' coins 🎉':'Out of moves')+'</h2><p class="muted" style="margin:8px 0">Score '+K.score+' / '+KTARGET+(win?'. Coins added to your wallet.':'. Better luck next time.')+lv+'</p>'+gEnd(K.g,win,K.lv)+'</div></div>'}
+function kFin(win){var K=S.K;S.K=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,K.g):'';
+ if(win&&u){gWin(u,'candy',K.lv);pay=gPay(u,K.g,K.lv,K.g.name+' · Level '+K.lv);earn=pay.earn;u.cd=u.cd||{};u.cd[K.g.id]=Date.now();save()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'🍬')+'</div><h2>'+(win?'You won! '+gTxt(pay):'Out of moves')+'</h2><p class="muted" style="margin:8px 0">Score '+K.score+' / '+KTARGET+(win?'. '+gSub(pay):'. Better luck next time.')+lv+'</p>'+gEnd(K.g,win,K.lv)+'</div></div>'}
 function kQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;S.K=null;$('#ov').innerHTML='';render()}
 /*CANDY_END*/
 /*ARROW_START*/
@@ -463,9 +475,9 @@ function aTap(cell){var A=S.A;if(!A||A.over)return;var k=A.own[cell];if(k<0||!A.
   if(A.hearts<=0){A.over=true;aT(function(){aFin(false)},700)}}}
 function aHint(){var A=S.A;if(!A||A.over||A.hints<1)return;var k,f=-1;for(k=0;k<A.ar.length;k++)if(A.ar[k].alive&&aFree(A,k)){f=k;break}
  if(f<0)return;A.hints--;A.hint={k:f,until:performance.now()+1600};aHdr();aKick()}
-function aFin(win){var A=S.A;if(A&&A.raf)cancelAnimationFrame(A.raf);S.A=null;var u=user(S.me),earn=0,lv=u?lvDone(u,A.g):'';
- if(win&&u){earn=A.g.reward;tx(u,'Game reward',earn,A.g.name+' · Level '+A.lv);gWin(u,'arrow',A.lv);save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'💔')+'</div><h2>'+(win?'Board cleared! +'+earn+' coins 🎉':'Out of hearts')+'</h2><p class="muted" style="margin:8px 0">'+(win?'Coins added to your wallet.':'Better luck next time.')+lv+'</p>'+gEnd(A.g,win,A.lv)+'</div></div>'}
+function aFin(win){var A=S.A;if(A&&A.raf)cancelAnimationFrame(A.raf);S.A=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,A.g):'';
+ if(win&&u){gWin(u,'arrow',A.lv);pay=gPay(u,A.g,A.lv,A.g.name+' · Level '+A.lv);earn=pay.earn;save()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'💔')+'</div><h2>'+(win?'Board cleared! '+gTxt(pay):'Out of hearts')+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'Better luck next time.')+lv+'</p>'+gEnd(A.g,win,A.lv)+'</div></div>'}
 function aQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;var A=S.A;if(A&&A.raf)cancelAnimationFrame(A.raf);S.A=null;$('#ov').innerHTML='';render()}
 /*ARROW_END*/
 /*WATER_START*/
@@ -519,9 +531,9 @@ function wPour(a,b){var W=S.W;W.busy=true;W.sel=-1;W.hist.push(wCopy(W.tubes));w
 function wUndo(){var W=S.W;if(!W||W.busy)return;if(W.undo<1)return toast('No undos left');if(!W.hist.length)return toast('Nothing to undo');W.tubes=W.hist.pop();W.undo--;W.sel=-1;W.msg='';wDraw()}
 function wReset(){var W=S.W;if(!W||W.busy)return;W.tubes=wCopy(W.start);W.hist=[];W.undo=5;W.added=false;W.sel=-1;W.msg='Restarted.';wDraw()}
 function wAdd(){var W=S.W;if(!W||W.busy)return;if(W.added)return toast('Extra tube already used');W.tubes.push([]);W.added=true;W.sel=-1;W.msg='Extra tube added.';wDraw()}
-function wFin(){var W=S.W;S.W=null;var u=user(S.me),earn=W.g.reward,lv='';
- if(u){tx(u,'Game reward',earn,W.g.name+' · Level '+W.lv);u.cd=u.cd||{};u.cd[W.g.id]=Date.now();gWin(u,'water',W.lv);lv=lvDone(u,W.g);save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>Level '+W.lv+' complete! +'+earn+' coins 🎉</h2><p class="muted" style="margin:8px 0">Coins added to your wallet.'+lv+' Next: Level '+(W.lv+1)+'.</p>'+gEnd(W.g,true,W.lv)+'</div></div>'}
+function wFin(){var W=S.W;S.W=null;var u=user(S.me),pay={earn:0,coupon:'',msg:''},lv='';
+ if(u){u.cd=u.cd||{};u.cd[W.g.id]=Date.now();gWin(u,'water',W.lv);pay=gPay(u,W.g,W.lv,W.g.name+' · Level '+W.lv);lv=lvDone(u,W.g);save()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>Level '+W.lv+' complete! '+gTxt(pay)+'</h2><p class="muted" style="margin:8px 0">'+gSub(pay)+lv+' Next: Level '+(W.lv+1)+'.</p>'+gEnd(W.g,true,W.lv)+'</div></div>'}
 function wQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;S.W=null;$('#ov').innerHTML='';render()}
 /*WATER_END*/
 /*FLOW_START*/
@@ -579,9 +591,9 @@ function fDraw(){var F=S.F;if(!F)return;var c=$('#lcc');if(!c)return;var x=c.get
   [p.a,p.b].forEach(function(q){x.fillStyle=col;x.beginPath();x.arc((q%N+.5)*cs,(Math.floor(q/N)+.5)*cs,cs*.33,0,6.3);x.fill()})});
  var n=$('#lcn');if(n)n.textContent='Connected '+done+' / '+F.pairs.length}
 function fCheck(){var F=S.F;if(!F||F.over)return;if(F.pairs.length&&F.pairs.every(fComp)){F.over=true;setTimeout(function(){if(S.F===F)fFin()},350)}}
-function fFin(){var F=S.F;S.F=null;var u=user(S.me),earn=F.g.reward,lv='';
- if(u){tx(u,'Game reward',earn,F.g.name+' · Level '+F.lv);u.cd=u.cd||{};u.cd[F.g.id]=Date.now();gWin(u,'flow',F.lv);lv=lvDone(u,F.g);save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>Level '+F.lv+' complete! +'+earn+' coins 🎉</h2><p class="muted" style="margin:8px 0">Coins added to your wallet.'+lv+' Next: Level '+(F.lv+1)+'.</p>'+gEnd(F.g,true,F.lv)+'</div></div>'}
+function fFin(){var F=S.F;S.F=null;var u=user(S.me),pay={earn:0,coupon:'',msg:''},lv='';
+ if(u){u.cd=u.cd||{};u.cd[F.g.id]=Date.now();gWin(u,'flow',F.lv);pay=gPay(u,F.g,F.lv,F.g.name+' · Level '+F.lv);lv=lvDone(u,F.g);save()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>Level '+F.lv+' complete! '+gTxt(pay)+'</h2><p class="muted" style="margin:8px 0">'+gSub(pay)+lv+' Next: Level '+(F.lv+1)+'.</p>'+gEnd(F.g,true,F.lv)+'</div></div>'}
 function fClear(){var F=S.F;if(!F||F.over)return;F.pairs.forEach(function(p){p.path=[]});fRebuild(F);F.cur=-1;fDraw()}
 function fQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;S.F=null;$('#ov').innerHTML='';render()}
 /*FLOW_END*/
@@ -670,9 +682,9 @@ function pkDraw(P,ts){var c=$('#pkc');if(!c)return;var x=c.getContext('2d'),W=P.
   if(car.state=='lane'||car.state=='leaving'){for(var j=0;j<car.seats;j++){x.fillStyle=j<car.filled?PKC[car.col]:'#e2e8f0';x.beginPath();x.arc(p.x-(car.seats-1)*5+j*10,p.y+p.h/2+7,3,0,6.3);x.fill()}}});
  var f0=pkQ(P,0);P.anims.forEach(function(a){var t=(ts-a.t0)/180,p=pkPos(P,a.car,ts);pkMan(x,f0.x+(p.x-f0.x)*t,f0.y+(p.y-f0.y)*t,PKC[a.col])})}
 function pkLoop(ts){var P=S.P;if(!P||P.over)return;pkTick(P,ts);if(P.over)return;pkDraw(P,ts);P.raf=requestAnimationFrame(pkLoop)}
-function pkFin(win){var P=S.P;if(!P||P.over)return;P.over=true;cancelAnimationFrame(P.raf);S.P=null;var u=user(S.me),earn=0,lv=u?lvDone(u,P.g):'';
- if(win&&u){earn=P.g.reward;tx(u,'Game reward',earn,P.g.name+' · Level '+P.lv);gWin(u,'pickup',P.lv);save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'🚧')+'</div><h2>'+(win?'Level '+P.lv+' complete! +'+earn+' coins 🎉':'Lane jammed!')+'</h2><p class="muted" style="margin:8px 0">'+(win?'All customers picked up. Coins added to your wallet.':'No car could pick up the next customer. Better luck next time.')+lv+'</p>'+gEnd(P.g,win,P.lv)+'</div></div>'}
+function pkFin(win){var P=S.P;if(!P||P.over)return;P.over=true;cancelAnimationFrame(P.raf);S.P=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,P.g):'';
+ if(win&&u){gWin(u,'pickup',P.lv);pay=gPay(u,P.g,P.lv,P.g.name+' · Level '+P.lv);earn=pay.earn;save()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'🚧')+'</div><h2>'+(win?'Level '+P.lv+' complete! '+gTxt(pay):'Lane jammed!')+'</h2><p class="muted" style="margin:8px 0">'+(win?'All customers picked up. '+gSub(pay):'No car could pick up the next customer. Better luck next time.')+lv+'</p>'+gEnd(P.g,win,P.lv)+'</div></div>'}
 function pkQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;var P=S.P;if(P){P.over=true;cancelAnimationFrame(P.raf)}S.P=null;$('#ov').innerHTML='';render()}
 function pkRestart(){var P=S.P;if(!P)return;P.over=true;cancelAnimationFrame(P.raf);pkStart(P.g)}
 /*PICKUP_END*/
@@ -789,9 +801,9 @@ function cwDraw(W){var c=$('#cwc');if(!c)return;var x=c.getContext('2d'),i;
  if(W.banner&&W.banner.t<2){x.globalAlpha=Math.min(1,2-W.banner.t);x.font='bold 34px sans-serif';x.textAlign='center';x.lineWidth=5;x.strokeStyle='#1e1b4b';x.strokeText(W.banner.txt,180,300);x.fillStyle='#fde047';x.fillText(W.banner.txt,180,300);x.globalAlpha=1}
  x.font='bold 12px sans-serif';x.textAlign='left';x.fillStyle='#fff';x.fillText(W.phase=='boss'?'BOSS FIGHT':'Wave '+(W.wave+1)+'/'+W.waves,52,CWH-8);x.textAlign='right';x.font='16px sans-serif';x.fillText('❤️'.repeat(W.hearts)+'🖤'.repeat(Math.max(0,3-W.hearts)),308,CWH-8)}
 function cwLoop(ts){var W=S.CW;if(!W||W.over)return;var dt=W.last?Math.min(.05,Math.max(0,(ts-W.last)/1000)):.016;W.last=ts;cwTick(W,dt);if(W.over)return;cwDraw(W);W.raf=requestAnimationFrame(cwLoop)}
-function cwFin(win){var W=S.CW;if(!W||W.over)return;W.over=true;cancelAnimationFrame(W.raf);S.CW=null;var u=user(S.me),earn=0,lv=u?lvDone(u,W.g):'';
- if(win&&u){earn=W.g.reward;tx(u,'Game reward',earn,W.g.name+' · Level '+W.lv);gWin(u,'crowd',W.lv);save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'💥')+'</div><h2>'+(win?'Level '+W.lv+' complete! +'+earn+' coins 🎉':'Your cannon was overrun')+'</h2><p class="muted" style="margin:8px 0">'+(win?'The boss is defeated. Coins added to your wallet.':'Better luck next time.')+lv+'</p>'+gEnd(W.g,win,W.lv)+'</div></div>'}
+function cwFin(win){var W=S.CW;if(!W||W.over)return;W.over=true;cancelAnimationFrame(W.raf);S.CW=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,W.g):'';
+ if(win&&u){gWin(u,'crowd',W.lv);pay=gPay(u,W.g,W.lv,W.g.name+' · Level '+W.lv);earn=pay.earn;save()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'💥')+'</div><h2>'+(win?'Level '+W.lv+' complete! '+gTxt(pay):'Your cannon was overrun')+'</h2><p class="muted" style="margin:8px 0">'+(win?'The boss is defeated. '+gSub(pay):'Better luck next time.')+lv+'</p>'+gEnd(W.g,win,W.lv)+'</div></div>'}
 function cwQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;var W=S.CW;if(W){W.over=true;cancelAnimationFrame(W.raf)}S.CW=null;$('#ov').innerHTML='';render()}
 /*CROWD_END*/
 /*QR_START*/
@@ -997,7 +1009,7 @@ function render(){
    '<input id="nt'+x.id+'" placeholder="Note / reason / warning text" style="margin:6px 0"><div class="row" style="justify-content:flex-start;flex-wrap:wrap"><input class="amt" id="a'+x.id+'" type="number" placeholder="Coins"><button class="btn s" data-a="add" data-v="'+x.id+'">Add</button><button class="btn s d" data-a="ded" data-v="'+x.id+'">Deduct</button></div>'+
    '<div class="row" style="justify-content:flex-start;margin-top:8px;flex-wrap:wrap"><button class="btn s o" data-a="ban" data-v="'+x.id+'">'+(x.status=='banned'?'Unban':'Ban')+'</button><button class="btn s o" data-a="bl" data-v="'+x.id+'">'+(x.status=='blacklisted'?'Remove blacklist':'Blacklist')+'</button><button class="btn s o" data-a="hist" data-v="'+x.id+'">History</button><button class="btn s o" data-a="warn" data-v="'+x.id+'">Warn</button><button class="btn s d" data-a="delu" data-v="'+x.id+'">'+(S.del==x.id?'Confirm delete':'Delete')+'</button></div>'+(S.hist==x.id?'<div style="margin-top:8px">'+txList(x,10)+'<h3 style="margin:10px 0 4px;font-size:14px">Admin actions</h3>'+(db.log.filter(function(l){return l.u==x.id}).slice(0,10).map(function(l){return '<div class="muted">'+esc(l.a)+' · '+esc(l.d)+' · '+esc(l.t)+'</div>'}).join('')||'<div class="muted">None yet</div>')+'</div>':'')+'</div>'}).join('')||'<p class="muted">No players yet. Players appear here after they log in.</p>');
   if(S.tab=='promo')h+='<div class="card"><h3>Notice for all players</h3><input id="nt" value="'+esc(db.notice)+'" placeholder="Announcement"><button class="btn" data-a="savenote">Publish</button></div><div class="card"><h3>New promo code</h3><input id="pc" placeholder="CODE (empty = random)"><input id="pv" type="number" placeholder="Coins"><input id="pm" type="number" placeholder="Max users (e.g. 20)"><button class="btn" data-a="addp">Create</button></div>'+db.promos.map(function(p){return '<div class="card row"><span><b>'+esc(p.code)+'</b> +'+p.coins+' coins <span class="muted">used '+p.used.length+'/'+(p.max||'∞')+'</span></span><button class="btn s d" data-a="delp" data-v="'+p.code+'">Delete</button></div>'}).join('');
-  if(S.tab=='games')h+=db.games.map(function(g){return '<div class="card"><div class="row"><input id="n'+g.id+'" value="'+esc(g.name)+'"><input class="amt" id="r'+g.id+'" type="number" value="'+g.reward+'"></div><div class="row" style="margin-top:6px"><button class="btn s" data-a="editg" data-v="'+g.id+'">Save name &amp; coins</button><button class="btn s d" data-a="delg" data-v="'+g.id+'">Remove</button></div></div>'}).join('')+'<div class="card"><h3>Level bonus</h3><p class="muted">Coins given after every finished game (win or lose) = this number x player level. Set 0 to turn it off.</p><input id="lvp" type="number" value="'+lvP()+'"><button class="btn" data-a="savelvp">Save</button></div><div class="card"><h3>Add a game</h3><input id="gn" placeholder="Game name"><input id="gi" placeholder="Icon (one emoji)"><input id="gr" type="number" placeholder="Coins per win"><button class="btn" data-a="addg">Add game</button></div>';
+  if(S.tab=='games')h+=db.games.map(function(g){return '<div class="card"><div class="row"><input id="n'+g.id+'" value="'+esc(g.name)+'"><input class="amt" id="r'+g.id+'" type="number" value="'+g.reward+'"></div>'+(GK[g.type]?'<p class="muted" style="margin-top:6px">Full game = how many levels the player must finish before getting the reward</p><input id="f'+g.id+'" type="number" min="1" max="1000" value="'+gFull(g)+'">':'')+'<p class="muted" style="margin-top:6px">Coupon code given when the full game is finished (optional; set coins to 0 for coupon only)</p><input id="cp'+g.id+'" value="'+esc(g.coupon||'')+'" placeholder="e.g. WIN100" autocapitalize="characters">'+'<div class="row" style="margin-top:6px"><button class="btn s" data-a="editg" data-v="'+g.id+'">Save name &amp; coins</button><button class="btn s d" data-a="delg" data-v="'+g.id+'">Remove</button></div></div>'}).join('')+'<div class="card"><h3>Add a game</h3><input id="gn" placeholder="Game name"><input id="gi" placeholder="Icon (one emoji)"><input id="gr" type="number" placeholder="Coins per win"><button class="btn" data-a="addg">Add game</button></div>';
   if(S.tab=='chat'){h+='<select id="cu" data-a="pick"><option value="">Choose a player</option>'+db.users.map(function(x){return '<option value="'+x.id+'"'+(S.chatU==x.id?' selected':'')+'>'+esc(x.name)+'</option>'}).join('')+'</select>';if(S.chatU)h+=chatBox(S.chatU,'admin')}
   if(S.tab=='pay')h+=adminPay();
   if(S.tab=='set')h+=sbCard();
@@ -1005,23 +1017,23 @@ function render(){
   h+='</div>'}
  else{
   if(S.scr=='home')h='<div class="top"><div style="display:flex;gap:10px;align-items:center"><div style="width:44px;height:44px;border-radius:50%;background:var(--g);color:#04210f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px">'+esc(u.name.charAt(0).toUpperCase())+'</div><div><h2>Hello, '+esc(u.name)+' '+bdg(u)+' 👋</h2><div class="muted">Welcome back!</div></div></div><button class="btn s o" data-a="go" data-v="profile">👤 Profile</button></div><div class="pad"><div class="bal"><span>Your coins</span><b>🪙 '+u.coins+'</b></div>'+lvCard(u)+(db.notice?'<div class="card" style="background:#3b2f06">📢 '+esc(db.notice)+'</div>':'')+(/^https?:\/\//.test(db.tg)?'<a class="btn" style="display:block;text-align:center;text-decoration:none;margin:10px 0" href="'+esc(db.tg)+'" target="_blank" rel="noopener">📣 Join our Telegram channel</a>':'')+'<div class="quick">'+[['shop','🎁','Rewards'],['wallet','👛','Wallet'],['board','🏆','Board'],['chat','💬','Chat']].map(function(q){return '<button data-a="go" data-v="'+q[0]+'"><i>'+q[1]+'</i>'+q[2]+'</button>'}).join('')+'</div><div class="row"><h3>Our games</h3><button class="btn s o" data-a="go" data-v="games">View all</button></div><div class="grid" style="margin-top:8px">'+db.games.slice(0,4).map(gameCard).join('')+'</div><div class="banner"><div><h3>Play Games &amp; Collect Coins</h3><button class="btn s y" style="margin-top:8px" data-a="go" data-v="games">PLAY NOW</button></div><span>🎮</span></div><h3 style="margin-top:14px">Recent activity</h3><div class="card">'+txList(u,3)+'</div></div>';
-  if(S.scr=='games')h='<div class="top"><h2>Games</h2></div><div class="pad"><p class="muted">Ludo and Chess: play against the computer and win to earn coins. Candy Match: score 1600 points in 20 moves. Match 5 in a row to make a Super Bomb 💣; tap it to blast the whole board for points. You can play again after 30 seconds. Arrow Game: tap an arrow to slide it out; if another arrow blocks it you lose a heart (3 hearts). Clear all arrows to win. Color Matching Game: tap a tube, then tap another tube to pour; sort every colour into its own tube to win (Undo, Restart and one extra tube are available). Line Color Matching: drag from a dot to the dot of the same colour to draw a line; lines cannot cross (drawing over another line cuts it). Connect every pair to win. Pickup Customer Days: tap a car that has a clear way out (follow its arrow) to send it to the lane; customers in the queue board a car of their own colour, and a full car leaves. Pick up every customer to win; if the lane is full and nobody can board, you lose. Crowd Cannon Battle: drag left / right to aim your cannon; it fires automatically. Shoot through the ×2 gate to double your blue crowd and defeat the waves of the red crowd one by one. Enemies move fast and break any gate they reach. You have 3 hearts: if your cannon is overrun you lose a heart and revive; with no hearts left you lose. After the waves a BOSS arrives with a lot of health: shoot the Super Box to open it, then shoot through the ×2 gate that appears to destroy the boss. Levels: every finished game gives a level bonus of 2 coins x your level. You move up one level after every 5 games (max Level 10). Every game also has 1000 levels: finish a level to unlock the next one, and each level is a little harder than the last.</p><div class="grid" style="margin-top:8px">'+db.games.map(gameCard).join('')+'</div></div>';
+  if(S.scr=='games')h='<div class="top"><h2>Games</h2></div><div class="pad"><p class="muted">Ludo and Chess: play against the computer and win to earn coins. Candy Match: score 1600 points in 20 moves. Match 5 in a row to make a Super Bomb 💣; tap it to blast the whole board for points. You can play again after 30 seconds. Arrow Game: tap an arrow to slide it out; if another arrow blocks it you lose a heart (3 hearts). Clear all arrows to win. Color Matching Game: tap a tube, then tap another tube to pour; sort every colour into its own tube to win (Undo, Restart and one extra tube are available). Line Color Matching: drag from a dot to the dot of the same colour to draw a line; lines cannot cross (drawing over another line cuts it). Connect every pair to win. Pickup Customer Days: tap a car that has a clear way out (follow its arrow) to send it to the lane; customers in the queue board a car of their own colour, and a full car leaves. Pick up every customer to win; if the lane is full and nobody can board, you lose. Crowd Cannon Battle: drag left / right to aim your cannon; it fires automatically. Shoot through the ×2 gate to double your blue crowd and defeat the waves of the red crowd one by one. Enemies move fast and break any gate they reach. You have 3 hearts: if your cannon is overrun you lose a heart and revive; with no hearts left you lose. After the waves a BOSS arrives with a lot of health: shoot the Super Box to open it, then shoot through the ×2 gate that appears to destroy the boss. IMPORTANT: coins (or a coupon code) are paid only after you finish the FULL game, which is the last level shown on each game card (for example Level 10 / 10). Winning the earlier levels only unlocks the next level and gives no coins. Each level is a little harder than the last. Your account level still goes up after every 5 games (max Level 10).</p><div class="grid" style="margin-top:8px">'+db.games.map(gameCard).join('')+'</div></div>';
   if(S.scr=='shop')h='<div class="top"><h2>Rewards</h2></div><div class="pad"><div class="bal"><span>Your coins</span><b>🪙 '+u.coins+'</b></div><p class="muted">Spend coins on badges that show next to your name. Rewards have no cash value.</p><div class="grid" style="margin-top:8px">'+db.rewards.map(function(r){var own=(u.owned||[]).indexOf(r.id)>-1;return '<div class="game"><div class="ic">'+r.icon+'</div><b>'+esc(r.name)+'</b><small>'+r.cost+' coins</small>'+(own?'<span class="tag">Owned</span>':'<button class="btn s" data-a="buy" data-v="'+r.id+'">Get</button>')+'</div>'}).join('')+'</div></div>';
   if(S.scr=='board'){var top=db.users.filter(function(x){return x.status=='active'}).sort(function(a,b){return b.coins-a.coins}).slice(0,10);h='<div class="top"><h2>Leaderboard</h2></div><div class="pad">'+top.map(function(x,i){return '<div class="card row" style="'+(x.id==u.id?'border:1px solid var(--g)':'')+'"><span>'+(['🥇','🥈','🥉'][i]||(i+1)+'.')+' <b>'+esc(x.name)+'</b> '+bdg(x)+' <span class="tag">Lv '+lvOf(x)+'</span></span><b class="plus">'+x.coins+'</b></div>'}).join('')+'</div>'}
-  if(S.scr=='wallet')h='<div class="top"><h2>Wallet</h2></div><div class="pad"><div class="bal"><span>Coin balance</span><b>🪙 '+u.coins+'</b></div><div class="card"><h3>Promo code</h3><div class="row"><input id="pcode" placeholder="Enter code"><button class="btn" data-a="redeem">Redeem</button></div></div>'+buyCard(u)+wdCard(u)+'<h3>Transaction history</h3><div class="row" style="justify-content:flex-start;margin:8px 0">'+['All','Earned','Spent'].map(function(f){return '<button class="btn s '+((S.f||'All')==f?'':'o')+'" data-a="f" data-v="'+f+'">'+f+'</button>'}).join('')+'</div><div class="card">'+txList(u,50,S.f)+'</div></div>';
+  if(S.scr=='wallet')h='<div class="top"><h2>Wallet</h2></div><div class="pad"><div class="bal"><span>Coin balance</span><b>🪙 '+u.coins+'</b></div><div class="card"><h3>Promo code</h3><div class="row"><input id="pcode" placeholder="Enter code"><button class="btn" data-a="redeem">Redeem</button></div></div>'+couponCard(u)+buyCard(u)+wdCard(u)+'<h3>Transaction history</h3><div class="row" style="justify-content:flex-start;margin:8px 0">'+['All','Earned','Spent'].map(function(f){return '<button class="btn s '+((S.f||'All')==f?'':'o')+'" data-a="f" data-v="'+f+'">'+f+'</button>'}).join('')+'</div><div class="card">'+txList(u,50,S.f)+'</div></div>';
   if(S.scr=='chat'){if(!S.cp){var rows=[{id:'admin',name:'Admin',ic:'👑',k:u.id}].concat(db.users.filter(function(x){return x.id!=u.id&&x.status=='active'}).map(function(x){return{id:x.id,name:x.name,ic:'👤',k:ck(u.id,x.id)}}));h='<div class="top"><h2>Chats</h2></div><div class="pad">'+rows.map(function(r){var m=(db.chats[r.k]||[]).slice(-1)[0];return '<div class="card row" data-a="open" data-v="'+r.id+'" style="cursor:pointer"><span style="font-size:30px">'+r.ic+'</span><div style="flex:1"><b>'+esc(r.name)+'</b><div class="muted">'+(m?esc(m.text).slice(0,40):'Tap to start chatting')+'</div></div><span class="muted">'+(m?m.t:'')+'</span></div>'}).join('')+'</div>'}else{var pk=S.cp=='admin'?u.id:ck(u.id,S.cp),pn=S.cp=='admin'?'Admin 👑':(user(S.cp)||{name:'User'}).name;h='<div class="top"><h2><button class="btn s o" data-a="open" data-v="">←</button> '+esc(pn)+'</h2></div><div class="pad">'+chatBox(pk,S.cp=='admin'?'user':u.id)+'</div>'}}
   if(S.scr=='profile')h='<div class="top"><h2>Profile</h2></div><div class="pad"><div class="card"><h3>'+esc(u.name)+'</h3><div class="muted">'+esc(SB.em||'')+'</div><p style="margin-top:8px">Coins: <b>'+u.coins+'</b></p></div>'+lvCard(u)+'<button class="btn d" style="width:100%" data-a="logout">Logout</button></div>';
   h+=nav()}
  $('#app').innerHTML=h;var c=$('#chatbox');if(c)c.scrollTop=c.scrollHeight}
 function endGame(win){var g=S.G.g,u=user(S.me);clearInterval(S.G.iv);var lv=u?lvDone(u,g):'';
- if(win){tx(u,'Game reward',g.reward,g.name);u.cd=u.cd||{};u.cd[g.id]=Date.now()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><h2>'+(win?'You won +'+g.reward+' coins! 🎉':'Time is up')+'</h2><p class="muted" style="margin:8px 0">'+(win?'Coins added to your wallet.':'You need 10 taps. Try again.')+lv+'</p><button class="btn" data-a="close">OK</button></div></div>';S.G=null;save()}
+ var pay={earn:0,coupon:'',msg:''};if(win){pay=gGive(u,g,g.name);u.cd=u.cd||{};u.cd[g.id]=Date.now()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><h2>'+(win?'You won '+gTxt(pay):'Time is up')+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'You need 10 taps. Try again.')+lv+'</p><button class="btn" data-a="close">OK</button></div></div>';S.G=null;save()}
 function drawGame(){var G=S.G;$('#ov').innerHTML='<div class="ov"><div class="box"><h3>'+esc(G.g.icon)+' '+esc(G.g.name)+'</h3><p>Time left: <b>'+G.left+'s</b> · Taps: <b>'+G.taps+'/10</b></p><button class="tap" data-a="tap">'+esc(G.g.icon)+'</button></div></div>'}
 function act(a,v){var u=S.me?user(S.me):null;
  if(actPay(a,v,u))return;
  if(a=='go'){S.scr=v;S.cp=null;render()}
  if(a=='buy'){var r=db.rewards.find(function(q){return q.id==v});if(u.coins<r.cost)return toast('Not enough coins. Play games to earn more.');tx(u,'Reward purchase',-r.cost,r.name);(u.owned=u.owned||[]).push(r.id);save();toast(r.name+' unlocked');render()}
- if(a=='editg'){var g=db.games.find(function(q){return q.id==v});g.name=$('#n'+v).value.trim()||g.name;g.reward=parseInt($('#r'+v).value)||g.reward;save();toast('Saved');render()}
+ if(a=='editg'){var g=db.games.find(function(q){return q.id==v});g.name=$('#n'+v).value.trim()||g.name;var rv=parseInt($('#r'+v).value);g.reward=isNaN(rv)||rv<0?g.reward:rv;if($('#f'+v))g.full=Math.max(1,Math.min(GLMAX,parseInt($('#f'+v).value)||10));g.coupon=(($('#cp'+v)||{}).value||'').trim().toUpperCase();save();toast('Saved');render()}
  if(a=='savelvp'){var lp=parseInt($('#lvp').value);if(isNaN(lp)||lp<0)return toast('Enter 0 or more');db.lvpts=lp;save();toast('Saved');render()}
  if(a=='savenote'){db.notice=$('#nt').value.trim();save();toast('Published');render()}
  if(a=='addp'){var c=$('#pc').value.trim().toUpperCase()||('FX'+Math.random().toString(36).slice(2,7).toUpperCase()),n=parseInt($('#pv').value);if(!n)return toast('Enter coins');db.promos.push({code:c,coins:n,max:parseInt($('#pm').value)||0,used:[]});save();render()}
@@ -1055,7 +1067,7 @@ function act(a,v){var u=S.me?user(S.me):null;
  if(a=='logout'){out()}
  if(a=='play'){var g=db.games.find(function(q){return q.id==v});var cd=(u.cd||{})[g.id];if(cd&&Date.now()-cd<30000)return toast('Wait '+Math.ceil((30000-(Date.now()-cd))/1000)+'s to play again');
   S.G={g:g,taps:0,left:10};drawGame();S.G.iv=setInterval(function(){S.G.left--;if(S.G.left<=0)endGame(S.G.taps>=10);else drawGame()},1000)}
- if(a=='tap'&&S.G){S.G.taps++;if(S.G.taps>=10)endGame(true);else drawGame()}
+ if(a=='tap'&&S.G){S.G.taps++;drawGame()}
  if(a=='close'){$('#ov').innerHTML='';render()}
  if(a=='send'){var t=$('#cin').value.trim();if(!t)return;if(S.admin)say(S.chatU,'admin',t);else if(S.cp=='admin')say(S.me,'user',t);else say(ck(S.me,S.cp),S.me,t);render()}
  if(a=='add'||a=='ded'){var x=user(v),n=parseInt($('#a'+v).value);if(!n||n<1)return toast('Enter coins greater than 0');
