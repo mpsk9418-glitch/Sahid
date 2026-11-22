@@ -174,6 +174,17 @@ function gHard(lv){return lv<=20?0:Math.min(1,(lv-20)/180)}
 function gAiRand(lv){return lv<=20?.8-.35*(Math.max(1,lv)-1)/19:.45*Math.max(0,1-(lv-20)/180)}
 function gWin(u,t,lv){if(u&&GK[t])u[GK[t]]=Math.max(u[GK[t]]||0,lv)}
 function gEnd(g,win,lv){return '<button class="btn" style="width:100%" data-a="gnext" data-v="'+g.id+'">'+(win?(lv>=GLMAX?'Replay Level '+GLMAX+' 🔁':'Next Level '+(lv+1)+' ▶'):'Try Again 🔄')+'</button><button class="btn o" style="width:100%;margin-top:8px" data-a="close">Exit</button>'}
+function gQMsg(g){var p=g?gQuitP(g):0;return p>0?'Quit this game? You will lose '+p+' coins.':'Quit this game? You will lose.'}
+function gNum(v,d){v=parseInt(v);return isNaN(v)||v<0?d:v}
+function gLoseP(g){return gNum(g.lose,2)}
+function gQuitP(g){return gNum(g.quit,2)}
+function gCan(u,g){var n=Math.max(gLoseP(g),gQuitP(g));if(u&&u.coins<n){toast('Not enough coins. You need '+n+' coins to play this game.');return false}return true}
+function gLive(u,g){if(u){u.live={id:g.id};save()}}
+function gClr(u){if(u&&u.live){u.live=null;save()}}
+function gPen(u,g,kind){var p=kind=='quit'?gQuitP(g):gLoseP(g),a;if(!u)return 0;u.live=null;a=Math.min(p,u.coins);if(a>0)tx(u,kind=='quit'?'Quit penalty':'Game lost',-a,g.name);else save();return a}
+function gPenTxt(n){return n?' <b style="color:#ff6b6b">−'+n+' coins penalty.</b>':''}
+function gActive(){return !!(S.L||S.C||S.K||S.A||S.W||S.F||S.P||S.CW||S.R||S.G)}
+function gStray(){var u=user(S.me),g;if(!u||!u.live||gActive())return;g=db.games.find(function(q){return q.id==u.live.id});u.live=null;if(g)gPen(u,g,'quit');else save()}
 function gFull(g){return Math.max(1,Math.min(GLMAX,parseInt(g.full)||10))}
 function gGive(u,g,note){var r={earn:0,coupon:'',msg:''};if(g.reward>0){r.earn=g.reward;tx(u,'Game reward',g.reward,note)}
  if(g.coupon){r.coupon=g.coupon;(u.coupons=u.coupons||[]).push({code:g.coupon,game:g.name,t:new Date().toLocaleString()});save()}return r}
@@ -183,10 +194,11 @@ function gPay(u,g,lv,note){var f=gFull(g),r={earn:0,coupon:'',msg:''};if(!u)retu
  u.done[g.id]=1;r=gGive(u,g,note);r.msg=' Full game completed!';save();return r}
 function gTxt(p){return p.earn?'+'+p.earn+' coins 🎉':p.coupon?'Coupon unlocked 🎟️':'Level cleared ✅'}
 function gSub(p){return (p.earn?'Coins added to your wallet.':'')+(p.coupon?' 🎟️ Your coupon code: '+p.coupon+' (saved in Wallet).':'')+p.msg}
-function gSmall(g){var u=user(S.me);if(!GK[g.type])return '+'+g.reward+' coins'+(g.coupon?' + 🎟️':'');var f=gFull(g),lv=gLvl(u,g.type),dn=u&&u.done&&u.done[g.id];
+function gSmall(g){return gSmall0(g)+' · lose/back −'+gLoseP(g)+'/−'+gQuitP(g)}
+function gSmall0(g){var u=user(S.me);if(!GK[g.type])return '+'+g.reward+' coins'+(g.coupon?' + 🎟️':'');var f=gFull(g),lv=gLvl(u,g.type),dn=u&&u.done&&u.done[g.id];
  return (dn?'✅ Completed · ':'Level '+Math.min(lv,f)+' / '+f+' · ')+'reward '+(g.reward>0?g.reward+' coins':'')+(g.reward>0&&g.coupon?' + ':'')+(g.coupon?'🎟️ coupon':'')+(g.reward>0||g.coupon?'':'none')}
 function couponCard(u){var c=u.coupons||[];return '<div class="card"><h3>🎟️ My coupons</h3>'+(c.length?c.map(function(x){return '<div class="tx row"><div><b style="letter-spacing:1px">'+esc(x.code)+'</b><div class="muted">'+esc(x.game)+' · '+esc(x.t)+'</div></div></div>'}).join(''):'<p class="muted">Finish a full game to win a coupon code.</p>')+'</div>'}
-function gStart(g){var t=g.type;if(t=='ludo'){S.LG=g;lMenu()}else if(t=='chess')cStart(g);else if(t=='candy')kStart(g);else if(t=='arrow')aStart(g);else if(t=='water')wStart(g);else if(t=='flow')fStart(g);else if(t=='pickup')pkStart(g);else if(t=='crowd')cwStart(g)}
+function gStart(g){var t=g.type;if(!gCan(user(S.me),g))return;if(t!='ludo')gLive(user(S.me),g);if(t=='ludo'){S.LG=g;lMenu()}else if(t=='chess')cStart(g);else if(t=='candy')kStart(g);else if(t=='arrow')aStart(g);else if(t=='water')wStart(g);else if(t=='flow')fStart(g);else if(t=='pickup')pkStart(g);else if(t=='crowd')cwStart(g)}
 /*GLV_END*/
 
 /*LUDO_START*/
@@ -250,7 +262,7 @@ function lMsg(t){if(S.L){S.L.msg=t;lUI()}}
 function lMenu(){$('#ov').innerHTML='<div class="ov"><div class="box"><h2>🎲 Ludo · Level '+gLvl(user(S.me),'ludo')+'</h2><p class="muted" style="margin:6px 0 12px">Roll a 6 to bring a token out. Get all 4 tokens home first to win. You can choose your colour before the game.</p><button class="btn" style="width:100%;margin:5px 0" data-a="l_m" data-v="2">You vs Computer (2 players)</button><button class="btn" style="width:100%;margin:5px 0" data-a="l_m" data-v="4">You vs 3 Computers (4 players)</button><button class="btn o" style="width:100%;margin:5px 0" data-a="l_m" data-v="f">Friends on this phone (4 players)</button><button class="btn o" style="width:100%;margin:5px 0" data-a="close">Cancel</button><p class="muted" style="margin-top:6px">Coins are given only for winning against the computer.</p></div></div>'}
 function lColor(mode){S.LM=mode;$('#ov').innerHTML='<div class="ov"><div class="box"><h2>Choose your colour</h2><p class="muted" style="margin:6px 0 12px">'+(mode=='2'?'The computer will play the opposite colour.':'The computer plays the other colours.')+'</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+LN.map(function(n,i){return '<button class="btn" data-a="l_c" data-v="'+i+'" style="background:linear-gradient(135deg,'+LL[i]+','+LC[i]+');color:#fff;padding:24px 0;font-size:17px;text-shadow:0 1px 3px #0007;border-radius:14px">'+n+'</button>'}).join('')+'</div><button class="btn o" style="width:100%;margin-top:12px" data-a="close">Cancel</button></div></div>'}
 function lFs(on){try{if(on){var e=document.documentElement;if(e.requestFullscreen&&!document.fullscreenElement)e.requestFullscreen().catch(function(){})}else if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(function(){})}catch(x){}}
-function lStart(g,mode,col){col=col||0;lFs(true);var P=mode=='2'?[col,(col+2)%4]:mode=='f'?[0,1,2,3]:[0,1,2,3].map(function(i){return(col+i)%4});
+function lStart(g,mode,col){col=col||0;if(mode!='f'){if(!gCan(user(S.me),g))return;gLive(user(S.me),g)}lFs(true);var P=mode=='2'?[col,(col+2)%4]:mode=='f'?[0,1,2,3]:[0,1,2,3].map(function(i){return(col+i)%4});
  S.L={g:g,mode:mode,P:P,hum:P.map(function(c,i){return mode=='f'||i==0}),tk:P.map(function(){return[-1,-1,-1,-1]}),turn:0,roll:0,state:'roll',mv:[],busy:false,pulse:0,msg:''};
  $('#ov').innerHTML='<div class="ov" style="align-items:stretch"><div class="box" style="padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px));max-width:none;width:100%;height:100vh;height:100dvh;border-radius:0;border:0;display:flex;flex-direction:column;background:linear-gradient(160deg,#1d2d23,#0c140f)"><div class="row"><span id="lt" style="font-size:17px"></span><button class="btn s o" data-a="l_quit">✕ Quit</button></div><div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0"><canvas id="lc" width="450" height="450" style="display:block;width:100%;width:min(100%,calc(100vh - 250px));width:min(100%,calc(100dvh - 250px));width:min(100%,calc(100svh - 250px));max-width:680px;height:auto;aspect-ratio:1/1;border-radius:14px;box-shadow:0 6px 18px #0008"></canvas></div><div class="row"><button class="btn" id="lb" data-a="l_roll" style="flex:1;font-size:19px;padding:18px;border-radius:16px;background:linear-gradient(#fde047,#f59e0b);color:#3b2a00;box-shadow:0 4px 0 #b45309">ROLL DICE</button><canvas id="ldice" width="160" height="160" style="width:84px;height:84px"></canvas></div><p class="muted" id="lm" style="margin-top:6px;min-height:18px"></p></div></div>';
  var L=S.L,c=$('#lc');
@@ -288,12 +300,13 @@ function lLand(ti){var L=S.L;if(!L)return;var pi=L.turn,tk=L.tk[pi],np=tk[ti],ca
  lMsg(caps.length?'Captured a token! Roll again.':np==56?'Token reached home! Roll again.':L.roll==6?'Rolled a 6. Roll again.':'');
  lT(function(){lEnd(extra)},caps.length?900:500)}
 function lEnd(extra){var L=S.L;if(!L)return;if(!extra)L.turn=(L.turn+1)%L.P.length;lBegin()}
-function lWin(wi){var L=S.L;S.L=null;lFs(false);var ci=L.P[wi],u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},you=L.mode!='f'&&wi==0,lvn=gLvl(u,'ludo');
+function lWin(wi){var L=S.L;S.L=null;lFs(false);var ci=L.P[wi],u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},you=L.mode!='f'&&wi==0,lvn=gLvl(u,'ludo'),pn=0;
+ if(L.mode!='f'&&u){if(you)gClr(u);else pn=gPen(u,L.g,'lose')}
  if(you&&u){gWin(u,'ludo',lvn);pay=gPay(u,L.g,lvn,L.g.name+' · Level '+lvn);earn=pay.earn;u.cd=u.cd||{};u.cd[L.g.id]=Date.now();save()}
  lDrawFinal(L);var lv=(L.mode!='f'&&u)?lvDone(u,L.g):'';
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>'+(you?'You won! '+gTxt(pay):(L.mode=='f'?LN[ci]+' wins!':LN[ci]+' (CPU) wins'))+'</h2><p class="muted" style="margin:8px 0">'+(you?gSub(pay):(L.mode=='f'?'Well played!':'Better luck next time.'))+lv+'</p>'+gEnd(L.g,you,lvn)+'</div></div>'}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>'+(you?'You won! '+gTxt(pay):(L.mode=='f'?LN[ci]+' wins!':LN[ci]+' (CPU) wins'))+'</h2><p class="muted" style="margin:8px 0">'+(you?gSub(pay):(L.mode=='f'?'Well played!':'Better luck next time.'))+gPenTxt(pn)+lv+'</p>'+gEnd(L.g,you,lvn)+'</div></div>'}
 function lDrawFinal(){}
-function lQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;lFs(false);S.L=null;$('#ov').innerHTML='';render()}
+function lQuit(){var q=S.L;if(typeof confirm=='function'&&!confirm(gQMsg(q&&q.mode!='f'?q.g:null)))return;lFs(false);S.L=null;if(q&&q.mode!='f')gPen(user(S.me),q.g,'quit');$('#ov').innerHTML='';render()}
 /*LUDO_END*/
 /*CHESS_START*/
 var CG={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'},CV={p:100,n:320,b:330,r:500,q:900,k:0};
@@ -359,11 +372,12 @@ function cPlay(m){var C=S.C,w=C.P.turn=='w';C.P=cApp(C.P,m);C.last=[m.f,m.t];C.s
  var st=cState(C.P);if(st){cFin(st,w);return}
  if(w){C.busy=true;C.msg='Computer is thinking...';cDraw();cT(function(){cPlay(cBest(S.C.P,S.C.lv))},450)}
  else{C.busy=false;C.msg=cChk(C.P)?'Check! Your move.':'Your turn (White)';cDraw()}}
-function cFin(st,mw){var C=S.C;S.C=null;var u=user(S.me),win=st=='mate'&&mw,earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,C.g):'';
+function cFin(st,mw){var C=S.C;S.C=null;var u=user(S.me),win=st=='mate'&&mw,earn=0,pay={earn:0,coupon:'',msg:''},pn=0,lv=u?lvDone(u,C.g):'';
+ if(u){if(win)gClr(u);else pn=gPen(u,C.g,'lose')}
  if(win&&u){gWin(u,'chess',C.lv);pay=gPay(u,C.g,C.lv,C.g.name+' · Level '+C.lv);earn=pay.earn;u.cd=u.cd||{};u.cd[C.g.id]=Date.now();save()}
  var t=st=='mate'?(mw?'Checkmate! You won':'Checkmate. Computer wins'):st=='stale'?'Draw by stalemate':'Draw';
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'♟️')+'</div><h2>'+(win?'You won! '+gTxt(pay):t)+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'Better luck next time.')+lv+'</p>'+gEnd(C.g,win,C.lv)+'</div></div>'}
-function cQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;S.C=null;$('#ov').innerHTML='';render()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'♟️')+'</div><h2>'+(win?'You won! '+gTxt(pay):t)+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'Better luck next time.')+gPenTxt(pn)+lv+'</p>'+gEnd(C.g,win,C.lv)+'</div></div>'}
+function cQuit(){var _g=S.C&&S.C.g;if(typeof confirm=='function'&&!confirm(gQMsg(_g)))return;if(_g)gPen(user(S.me),_g,'quit');S.C=null;$('#ov').innerHTML='';render()}
 /*CHESS_END*/
 /*CANDY_START*/
 var KD=['🍬','🍭','🍒','🍇','🍋','🍓','💣'],KN=8,KMOVES=20,KTARGET=1600,KCOL=6;
@@ -422,10 +436,11 @@ function kCasc(n){var K=S.K,ms=kMatches(K.b);
  var big=kBig(K.b);
  K.score+=ms.length*10*n;K.msg=big.length?'💣 Super Bomb made! Tap it to blast the whole board.':n>1?'Combo x'+n+'!':'';K.clr={};ms.forEach(function(i){K.clr[i]=1});kDraw();
  kT(function(){ms.forEach(function(i){K.b[i]=-1});big.forEach(function(i){K.b[i]=6});kFall(K.b);K.clr={};kDraw();kT(function(){kCasc(n+1)},250)},260)}
-function kFin(win){var K=S.K;S.K=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,K.g):'';
+function kFin(win){var K=S.K;S.K=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},pn=0,lv=u?lvDone(u,K.g):'';
+ if(u){if(win)gClr(u);else pn=gPen(u,K.g,'lose')}
  if(win&&u){gWin(u,'candy',K.lv);pay=gPay(u,K.g,K.lv,K.g.name+' · Level '+K.lv);earn=pay.earn;u.cd=u.cd||{};u.cd[K.g.id]=Date.now();save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'🍬')+'</div><h2>'+(win?'You won! '+gTxt(pay):'Out of moves')+'</h2><p class="muted" style="margin:8px 0">Score '+K.score+' / '+KTARGET+(win?'. '+gSub(pay):'. Better luck next time.')+lv+'</p>'+gEnd(K.g,win,K.lv)+'</div></div>'}
-function kQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;S.K=null;$('#ov').innerHTML='';render()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'🍬')+'</div><h2>'+(win?'You won! '+gTxt(pay):'Out of moves')+'</h2><p class="muted" style="margin:8px 0">Score '+K.score+' / '+KTARGET+(win?'. '+gSub(pay):'. Better luck next time.')+gPenTxt(pn)+lv+'</p>'+gEnd(K.g,win,K.lv)+'</div></div>'}
+function kQuit(){var _g=S.K&&S.K.g;if(typeof confirm=='function'&&!confirm(gQMsg(_g)))return;if(_g)gPen(user(S.me),_g,'quit');S.K=null;$('#ov').innerHTML='';render()}
 /*CANDY_END*/
 /*ARROW_START*/
 var AW=7,AH=9,AL0=3,AL1=8,AD=[[0,-1],[1,0],[0,1],[-1,0]];
@@ -475,10 +490,11 @@ function aTap(cell){var A=S.A;if(!A||A.over)return;var k=A.own[cell];if(k<0||!A.
   if(A.hearts<=0){A.over=true;aT(function(){aFin(false)},700)}}}
 function aHint(){var A=S.A;if(!A||A.over||A.hints<1)return;var k,f=-1;for(k=0;k<A.ar.length;k++)if(A.ar[k].alive&&aFree(A,k)){f=k;break}
  if(f<0)return;A.hints--;A.hint={k:f,until:performance.now()+1600};aHdr();aKick()}
-function aFin(win){var A=S.A;if(A&&A.raf)cancelAnimationFrame(A.raf);S.A=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,A.g):'';
+function aFin(win){var A=S.A;if(A&&A.raf)cancelAnimationFrame(A.raf);S.A=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},pn=0,lv=u?lvDone(u,A.g):'';
+ if(u){if(win)gClr(u);else pn=gPen(u,A.g,'lose')}
  if(win&&u){gWin(u,'arrow',A.lv);pay=gPay(u,A.g,A.lv,A.g.name+' · Level '+A.lv);earn=pay.earn;save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'💔')+'</div><h2>'+(win?'Board cleared! '+gTxt(pay):'Out of hearts')+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'Better luck next time.')+lv+'</p>'+gEnd(A.g,win,A.lv)+'</div></div>'}
-function aQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;var A=S.A;if(A&&A.raf)cancelAnimationFrame(A.raf);S.A=null;$('#ov').innerHTML='';render()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'💔')+'</div><h2>'+(win?'Board cleared! '+gTxt(pay):'Out of hearts')+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'Better luck next time.')+gPenTxt(pn)+lv+'</p>'+gEnd(A.g,win,A.lv)+'</div></div>'}
+function aQuit(){var _g=S.A&&S.A.g;if(typeof confirm=='function'&&!confirm(gQMsg(_g)))return;if(_g)gPen(user(S.me),_g,'quit');var A=S.A;if(A&&A.raf)cancelAnimationFrame(A.raf);S.A=null;$('#ov').innerHTML='';render()}
 /*ARROW_END*/
 /*WATER_START*/
 var WC=['#ef4444','#3b82f6','#22c55e','#facc15','#f97316','#a855f7','#2dd4bf','#ec4899','#84cc16','#92400e'],WCAP=4;
@@ -532,9 +548,9 @@ function wUndo(){var W=S.W;if(!W||W.busy)return;if(W.undo<1)return toast('No und
 function wReset(){var W=S.W;if(!W||W.busy)return;W.tubes=wCopy(W.start);W.hist=[];W.undo=5;W.added=false;W.sel=-1;W.msg='Restarted.';wDraw()}
 function wAdd(){var W=S.W;if(!W||W.busy)return;if(W.added)return toast('Extra tube already used');W.tubes.push([]);W.added=true;W.sel=-1;W.msg='Extra tube added.';wDraw()}
 function wFin(){var W=S.W;S.W=null;var u=user(S.me),pay={earn:0,coupon:'',msg:''},lv='';
- if(u){u.cd=u.cd||{};u.cd[W.g.id]=Date.now();gWin(u,'water',W.lv);pay=gPay(u,W.g,W.lv,W.g.name+' · Level '+W.lv);lv=lvDone(u,W.g);save()}
+ if(u){gClr(u);u.cd=u.cd||{};u.cd[W.g.id]=Date.now();gWin(u,'water',W.lv);pay=gPay(u,W.g,W.lv,W.g.name+' · Level '+W.lv);lv=lvDone(u,W.g);save()}
  $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>Level '+W.lv+' complete! '+gTxt(pay)+'</h2><p class="muted" style="margin:8px 0">'+gSub(pay)+lv+' Next: Level '+(W.lv+1)+'.</p>'+gEnd(W.g,true,W.lv)+'</div></div>'}
-function wQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;S.W=null;$('#ov').innerHTML='';render()}
+function wQuit(){var _g=S.W&&S.W.g;if(typeof confirm=='function'&&!confirm(gQMsg(_g)))return;if(_g)gPen(user(S.me),_g,'quit');S.W=null;$('#ov').innerHTML='';render()}
 /*WATER_END*/
 /*FLOW_START*/
 var FC=['#ef4444','#3b82f6','#22c55e','#facc15','#f97316','#a855f7','#2dd4bf','#ec4899','#84cc16'],FD=[[0,-1],[1,0],[0,1],[-1,0]];
@@ -592,10 +608,10 @@ function fDraw(){var F=S.F;if(!F)return;var c=$('#lcc');if(!c)return;var x=c.get
  var n=$('#lcn');if(n)n.textContent='Connected '+done+' / '+F.pairs.length}
 function fCheck(){var F=S.F;if(!F||F.over)return;if(F.pairs.length&&F.pairs.every(fComp)){F.over=true;setTimeout(function(){if(S.F===F)fFin()},350)}}
 function fFin(){var F=S.F;S.F=null;var u=user(S.me),pay={earn:0,coupon:'',msg:''},lv='';
- if(u){u.cd=u.cd||{};u.cd[F.g.id]=Date.now();gWin(u,'flow',F.lv);pay=gPay(u,F.g,F.lv,F.g.name+' · Level '+F.lv);lv=lvDone(u,F.g);save()}
+ if(u){gClr(u);u.cd=u.cd||{};u.cd[F.g.id]=Date.now();gWin(u,'flow',F.lv);pay=gPay(u,F.g,F.lv,F.g.name+' · Level '+F.lv);lv=lvDone(u,F.g);save()}
  $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">🏆</div><h2>Level '+F.lv+' complete! '+gTxt(pay)+'</h2><p class="muted" style="margin:8px 0">'+gSub(pay)+lv+' Next: Level '+(F.lv+1)+'.</p>'+gEnd(F.g,true,F.lv)+'</div></div>'}
 function fClear(){var F=S.F;if(!F||F.over)return;F.pairs.forEach(function(p){p.path=[]});fRebuild(F);F.cur=-1;fDraw()}
-function fQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;S.F=null;$('#ov').innerHTML='';render()}
+function fQuit(){var _g=S.F&&S.F.g;if(typeof confirm=='function'&&!confirm(gQMsg(_g)))return;if(_g)gPen(user(S.me),_g,'quit');S.F=null;$('#ov').innerHTML='';render()}
 /*FLOW_END*/
 /*PICKUP_START*/
 var PKC=['#ec4899','#22c55e','#3b82f6','#f97316','#facc15','#a855f7'],PKA=[-1.5708,0,1.5708,3.1416],PKS=5,PKM=850,PKCH=112;
@@ -682,10 +698,11 @@ function pkDraw(P,ts){var c=$('#pkc');if(!c)return;var x=c.getContext('2d'),W=P.
   if(car.state=='lane'||car.state=='leaving'){for(var j=0;j<car.seats;j++){x.fillStyle=j<car.filled?PKC[car.col]:'#e2e8f0';x.beginPath();x.arc(p.x-(car.seats-1)*5+j*10,p.y+p.h/2+7,3,0,6.3);x.fill()}}});
  var f0=pkQ(P,0);P.anims.forEach(function(a){var t=(ts-a.t0)/180,p=pkPos(P,a.car,ts);pkMan(x,f0.x+(p.x-f0.x)*t,f0.y+(p.y-f0.y)*t,PKC[a.col])})}
 function pkLoop(ts){var P=S.P;if(!P||P.over)return;pkTick(P,ts);if(P.over)return;pkDraw(P,ts);P.raf=requestAnimationFrame(pkLoop)}
-function pkFin(win){var P=S.P;if(!P||P.over)return;P.over=true;cancelAnimationFrame(P.raf);S.P=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,P.g):'';
+function pkFin(win){var P=S.P;if(!P||P.over)return;P.over=true;cancelAnimationFrame(P.raf);S.P=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},pn=0,lv=u?lvDone(u,P.g):'';
+ if(u){if(win)gClr(u);else pn=gPen(u,P.g,'lose')}
  if(win&&u){gWin(u,'pickup',P.lv);pay=gPay(u,P.g,P.lv,P.g.name+' · Level '+P.lv);earn=pay.earn;save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'🚧')+'</div><h2>'+(win?'Level '+P.lv+' complete! '+gTxt(pay):'Lane jammed!')+'</h2><p class="muted" style="margin:8px 0">'+(win?'All customers picked up. '+gSub(pay):'No car could pick up the next customer. Better luck next time.')+lv+'</p>'+gEnd(P.g,win,P.lv)+'</div></div>'}
-function pkQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;var P=S.P;if(P){P.over=true;cancelAnimationFrame(P.raf)}S.P=null;$('#ov').innerHTML='';render()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'🚧')+'</div><h2>'+(win?'Level '+P.lv+' complete! '+gTxt(pay):'Lane jammed!')+'</h2><p class="muted" style="margin:8px 0">'+(win?'All customers picked up. '+gSub(pay):'No car could pick up the next customer. Better luck next time.')+gPenTxt(pn)+lv+'</p>'+gEnd(P.g,win,P.lv)+'</div></div>'}
+function pkQuit(){var _g=S.P&&S.P.g;if(typeof confirm=='function'&&!confirm(gQMsg(_g)))return;if(_g)gPen(user(S.me),_g,'quit');var P=S.P;if(P){P.over=true;cancelAnimationFrame(P.raf)}S.P=null;$('#ov').innerHTML='';render()}
 function pkRestart(){var P=S.P;if(!P)return;P.over=true;cancelAnimationFrame(P.raf);pkStart(P.g)}
 /*PICKUP_END*/
 /*CROWD_START*/
@@ -801,10 +818,11 @@ function cwDraw(W){var c=$('#cwc');if(!c)return;var x=c.getContext('2d'),i;
  if(W.banner&&W.banner.t<2){x.globalAlpha=Math.min(1,2-W.banner.t);x.font='bold 34px sans-serif';x.textAlign='center';x.lineWidth=5;x.strokeStyle='#1e1b4b';x.strokeText(W.banner.txt,180,300);x.fillStyle='#fde047';x.fillText(W.banner.txt,180,300);x.globalAlpha=1}
  x.font='bold 12px sans-serif';x.textAlign='left';x.fillStyle='#fff';x.fillText(W.phase=='boss'?'BOSS FIGHT':'Wave '+(W.wave+1)+'/'+W.waves,52,CWH-8);x.textAlign='right';x.font='16px sans-serif';x.fillText('❤️'.repeat(W.hearts)+'🖤'.repeat(Math.max(0,3-W.hearts)),308,CWH-8)}
 function cwLoop(ts){var W=S.CW;if(!W||W.over)return;var dt=W.last?Math.min(.05,Math.max(0,(ts-W.last)/1000)):.016;W.last=ts;cwTick(W,dt);if(W.over)return;cwDraw(W);W.raf=requestAnimationFrame(cwLoop)}
-function cwFin(win){var W=S.CW;if(!W||W.over)return;W.over=true;cancelAnimationFrame(W.raf);S.CW=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},lv=u?lvDone(u,W.g):'';
+function cwFin(win){var W=S.CW;if(!W||W.over)return;W.over=true;cancelAnimationFrame(W.raf);S.CW=null;var u=user(S.me),earn=0,pay={earn:0,coupon:'',msg:''},pn=0,lv=u?lvDone(u,W.g):'';
+ if(u){if(win)gClr(u);else pn=gPen(u,W.g,'lose')}
  if(win&&u){gWin(u,'crowd',W.lv);pay=gPay(u,W.g,W.lv,W.g.name+' · Level '+W.lv);earn=pay.earn;save()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'💥')+'</div><h2>'+(win?'Level '+W.lv+' complete! '+gTxt(pay):'Your cannon was overrun')+'</h2><p class="muted" style="margin:8px 0">'+(win?'The boss is defeated. '+gSub(pay):'Better luck next time.')+lv+'</p>'+gEnd(W.g,win,W.lv)+'</div></div>'}
-function cwQuit(){if(typeof confirm=='function'&&!confirm('Quit this game? You will lose.'))return;var W=S.CW;if(W){W.over=true;cancelAnimationFrame(W.raf)}S.CW=null;$('#ov').innerHTML='';render()}
+ $('#ov').innerHTML='<div class="ov"><div class="box"><div style="font-size:56px">'+(win?'🏆':'💥')+'</div><h2>'+(win?'Level '+W.lv+' complete! '+gTxt(pay):'Your cannon was overrun')+'</h2><p class="muted" style="margin:8px 0">'+(win?'The boss is defeated. '+gSub(pay):'Better luck next time.')+gPenTxt(pn)+lv+'</p>'+gEnd(W.g,win,W.lv)+'</div></div>'}
+function cwQuit(){var _g=S.CW&&S.CW.g;if(typeof confirm=='function'&&!confirm(gQMsg(_g)))return;if(_g)gPen(user(S.me),_g,'quit');var W=S.CW;if(W){W.over=true;cancelAnimationFrame(W.raf)}S.CW=null;$('#ov').innerHTML='';render()}
 /*CROWD_END*/
 /*QR_START*/
 var QRG=(function(){
@@ -988,7 +1006,7 @@ function actPay(a,v,u){var P=db.pay;
   else{o.status='rejected';if(x)say(x.id,'admin','❌ Payment could not be verified (UTR '+o.ref+'). Contact the admin.')}
   save();toast('Done');render();return true}
  return false}
-function render(){
+function render(){try{gStray()}catch(e){}
  if(S.me&&!user(S.me)&&!S.admin){S.me=null;S.scr='login'}
  var u=S.me?user(S.me):null,h='';
  if(u&&u.status!='active'&&!S.admin){S.me=null;S.scr='login';toast('This account is '+u.status+'. Contact the admin.');u=null}
@@ -1009,7 +1027,7 @@ function render(){
    '<input id="nt'+x.id+'" placeholder="Note / reason / warning text" style="margin:6px 0"><div class="row" style="justify-content:flex-start;flex-wrap:wrap"><input class="amt" id="a'+x.id+'" type="number" placeholder="Coins"><button class="btn s" data-a="add" data-v="'+x.id+'">Add</button><button class="btn s d" data-a="ded" data-v="'+x.id+'">Deduct</button></div>'+
    '<div class="row" style="justify-content:flex-start;margin-top:8px;flex-wrap:wrap"><button class="btn s o" data-a="ban" data-v="'+x.id+'">'+(x.status=='banned'?'Unban':'Ban')+'</button><button class="btn s o" data-a="bl" data-v="'+x.id+'">'+(x.status=='blacklisted'?'Remove blacklist':'Blacklist')+'</button><button class="btn s o" data-a="hist" data-v="'+x.id+'">History</button><button class="btn s o" data-a="warn" data-v="'+x.id+'">Warn</button><button class="btn s d" data-a="delu" data-v="'+x.id+'">'+(S.del==x.id?'Confirm delete':'Delete')+'</button></div>'+(S.hist==x.id?'<div style="margin-top:8px">'+txList(x,10)+'<h3 style="margin:10px 0 4px;font-size:14px">Admin actions</h3>'+(db.log.filter(function(l){return l.u==x.id}).slice(0,10).map(function(l){return '<div class="muted">'+esc(l.a)+' · '+esc(l.d)+' · '+esc(l.t)+'</div>'}).join('')||'<div class="muted">None yet</div>')+'</div>':'')+'</div>'}).join('')||'<p class="muted">No players yet. Players appear here after they log in.</p>');
   if(S.tab=='promo')h+='<div class="card"><h3>Notice for all players</h3><input id="nt" value="'+esc(db.notice)+'" placeholder="Announcement"><button class="btn" data-a="savenote">Publish</button></div><div class="card"><h3>New promo code</h3><input id="pc" placeholder="CODE (empty = random)"><input id="pv" type="number" placeholder="Coins"><input id="pm" type="number" placeholder="Max users (e.g. 20)"><button class="btn" data-a="addp">Create</button></div>'+db.promos.map(function(p){return '<div class="card row"><span><b>'+esc(p.code)+'</b> +'+p.coins+' coins <span class="muted">used '+p.used.length+'/'+(p.max||'∞')+'</span></span><button class="btn s d" data-a="delp" data-v="'+p.code+'">Delete</button></div>'}).join('');
-  if(S.tab=='games')h+=db.games.map(function(g){return '<div class="card"><div class="row"><input id="n'+g.id+'" value="'+esc(g.name)+'"><input class="amt" id="r'+g.id+'" type="number" value="'+g.reward+'"></div>'+(GK[g.type]?'<p class="muted" style="margin-top:6px">Full game = how many levels the player must finish before getting the reward</p><input id="f'+g.id+'" type="number" min="1" max="1000" value="'+gFull(g)+'">':'')+'<p class="muted" style="margin-top:6px">Coupon code given when the full game is finished (optional; set coins to 0 for coupon only)</p><input id="cp'+g.id+'" value="'+esc(g.coupon||'')+'" placeholder="e.g. WIN100" autocapitalize="characters">'+'<div class="row" style="margin-top:6px"><button class="btn s" data-a="editg" data-v="'+g.id+'">Save name &amp; coins</button><button class="btn s d" data-a="delg" data-v="'+g.id+'">Remove</button></div></div>'}).join('')+'<div class="card"><h3>Add a game</h3><input id="gn" placeholder="Game name"><input id="gi" placeholder="Icon (one emoji)"><input id="gr" type="number" placeholder="Coins per win"><button class="btn" data-a="addg">Add game</button></div>';
+  if(S.tab=='games')h+=db.games.map(function(g){return '<div class="card"><div class="row"><input id="n'+g.id+'" value="'+esc(g.name)+'"><input class="amt" id="r'+g.id+'" type="number" value="'+g.reward+'"></div>'+'<p class="muted" style="margin-top:6px">Penalty coins cut when the player LOSES a game / goes BACK (quits) in the middle. Win reward = the coins box above.</p><div class="row"><input id="ls'+g.id+'" type="number" min="0" value="'+gLoseP(g)+'" placeholder="Lose penalty"><input id="qt'+g.id+'" type="number" min="0" value="'+gQuitP(g)+'" placeholder="Back penalty"></div><div class="muted" style="margin-top:4px">Left: lose penalty · Right: back/quit penalty</div>'+(GK[g.type]?'<p class="muted" style="margin-top:6px">Full game = how many levels the player must finish before getting the reward</p><input id="f'+g.id+'" type="number" min="1" max="1000" value="'+gFull(g)+'">':'')+'<p class="muted" style="margin-top:6px">Coupon code given when the full game is finished (optional; set coins to 0 for coupon only)</p><input id="cp'+g.id+'" value="'+esc(g.coupon||'')+'" placeholder="e.g. WIN100" autocapitalize="characters">'+'<div class="row" style="margin-top:6px"><button class="btn s" data-a="editg" data-v="'+g.id+'">Save name &amp; coins</button><button class="btn s d" data-a="delg" data-v="'+g.id+'">Remove</button></div></div>'}).join('')+'<div class="card"><h3>Add a game</h3><input id="gn" placeholder="Game name"><input id="gi" placeholder="Icon (one emoji)"><input id="gr" type="number" placeholder="Coins per win"><button class="btn" data-a="addg">Add game</button></div>';
   if(S.tab=='chat'){h+='<select id="cu" data-a="pick"><option value="">Choose a player</option>'+db.users.map(function(x){return '<option value="'+x.id+'"'+(S.chatU==x.id?' selected':'')+'>'+esc(x.name)+'</option>'}).join('')+'</select>';if(S.chatU)h+=chatBox(S.chatU,'admin')}
   if(S.tab=='pay')h+=adminPay();
   if(S.tab=='set')h+=sbCard();
@@ -1026,14 +1044,14 @@ function render(){
   h+=nav()}
  $('#app').innerHTML=h;var c=$('#chatbox');if(c)c.scrollTop=c.scrollHeight}
 function endGame(win){var g=S.G.g,u=user(S.me);clearInterval(S.G.iv);var lv=u?lvDone(u,g):'';
- var pay={earn:0,coupon:'',msg:''};if(win){pay=gGive(u,g,g.name);u.cd=u.cd||{};u.cd[g.id]=Date.now()}
- $('#ov').innerHTML='<div class="ov"><div class="box"><h2>'+(win?'You won '+gTxt(pay):'Time is up')+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'You need 10 taps. Try again.')+lv+'</p><button class="btn" data-a="close">OK</button></div></div>';S.G=null;save()}
+ var pay={earn:0,coupon:'',msg:''},pn=0;if(win){pay=gGive(u,g,g.name);u.cd=u.cd||{};u.cd[g.id]=Date.now();gClr(u)}else pn=gPen(u,g,'lose')
+ $('#ov').innerHTML='<div class="ov"><div class="box"><h2>'+(win?'You won '+gTxt(pay):'Time is up')+'</h2><p class="muted" style="margin:8px 0">'+(win?gSub(pay):'You need 10 taps. Try again.')+gPenTxt(pn)+lv+'</p><button class="btn" data-a="close">OK</button></div></div>';S.G=null;save()}
 function drawGame(){var G=S.G;$('#ov').innerHTML='<div class="ov"><div class="box"><h3>'+esc(G.g.icon)+' '+esc(G.g.name)+'</h3><p>Time left: <b>'+G.left+'s</b> · Taps: <b>'+G.taps+'/10</b></p><button class="tap" data-a="tap">'+esc(G.g.icon)+'</button></div></div>'}
 function act(a,v){var u=S.me?user(S.me):null;
  if(actPay(a,v,u))return;
  if(a=='go'){S.scr=v;S.cp=null;render()}
  if(a=='buy'){var r=db.rewards.find(function(q){return q.id==v});if(u.coins<r.cost)return toast('Not enough coins. Play games to earn more.');tx(u,'Reward purchase',-r.cost,r.name);(u.owned=u.owned||[]).push(r.id);save();toast(r.name+' unlocked');render()}
- if(a=='editg'){var g=db.games.find(function(q){return q.id==v});g.name=$('#n'+v).value.trim()||g.name;var rv=parseInt($('#r'+v).value);g.reward=isNaN(rv)||rv<0?g.reward:rv;if($('#f'+v))g.full=Math.max(1,Math.min(GLMAX,parseInt($('#f'+v).value)||10));g.coupon=(($('#cp'+v)||{}).value||'').trim().toUpperCase();save();toast('Saved');render()}
+ if(a=='editg'){var g=db.games.find(function(q){return q.id==v});g.name=$('#n'+v).value.trim()||g.name;var rv=parseInt($('#r'+v).value);g.reward=isNaN(rv)||rv<0?g.reward:rv;if($('#f'+v))g.full=Math.max(1,Math.min(GLMAX,parseInt($('#f'+v).value)||10));g.coupon=(($('#cp'+v)||{}).value||'').trim().toUpperCase();g.lose=gNum(($('#ls'+v)||{}).value,2);g.quit=gNum(($('#qt'+v)||{}).value,2);save();toast('Saved');render()}
  if(a=='savelvp'){var lp=parseInt($('#lvp').value);if(isNaN(lp)||lp<0)return toast('Enter 0 or more');db.lvpts=lp;save();toast('Saved');render()}
  if(a=='savenote'){db.notice=$('#nt').value.trim();save();toast('Published');render()}
  if(a=='addp'){var c=$('#pc').value.trim().toUpperCase()||('FX'+Math.random().toString(36).slice(2,7).toUpperCase()),n=parseInt($('#pv').value);if(!n)return toast('Enter coins');db.promos.push({code:c,coins:n,max:parseInt($('#pm').value)||0,used:[]});save();render()}
@@ -1066,7 +1084,7 @@ function act(a,v){var u=S.me?user(S.me):null;
     var m=JSON.stringify(r.j||{});toast(/already/i.test(m)?'This email is already registered. Please login':/password/i.test(m)?'Password is too weak':'Registration failed. Try again')})}).catch(function(){SB.busyA=0;toast('Network error. Try again')});return}
  if(a=='logout'){out()}
  if(a=='play'){var g=db.games.find(function(q){return q.id==v});var cd=(u.cd||{})[g.id];if(cd&&Date.now()-cd<30000)return toast('Wait '+Math.ceil((30000-(Date.now()-cd))/1000)+'s to play again');
-  S.G={g:g,taps:0,left:10};drawGame();S.G.iv=setInterval(function(){S.G.left--;if(S.G.left<=0)endGame(S.G.taps>=10);else drawGame()},1000)}
+  if(!gCan(u,g))return;gLive(u,g);S.G={g:g,taps:0,left:10};drawGame();S.G.iv=setInterval(function(){S.G.left--;if(S.G.left<=0)endGame(S.G.taps>=10);else drawGame()},1000)}
  if(a=='tap'&&S.G){S.G.taps++;drawGame()}
  if(a=='close'){$('#ov').innerHTML='';render()}
  if(a=='send'){var t=$('#cin').value.trim();if(!t)return;if(S.admin)say(S.chatU,'admin',t);else if(S.cp=='admin')say(S.me,'user',t);else say(ck(S.me,S.cp),S.me,t);render()}
