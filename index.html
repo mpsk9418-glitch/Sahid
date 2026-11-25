@@ -70,7 +70,7 @@ function save(){mem=db;try{localStorage.setItem('emc',JSON.stringify(db))}catch(
 var db=load()||{app:{name:'EARNING MONEY CLINER',logo:'💰'},
  games:[{id:2,name:'Ludo',icon:'🎲',reward:3,type:'ludo'}],
  users:[],chats:{}};
-function fixdb(){if(db.app&&db.app.name=='Earning Money Cleaner')db.app.name='EARNING MONEY CLINER';db.promos=db.promos||[];db.log=db.log||[];db.notice=db.notice||'';db.tg=db.tg||'';db.maint=!!db.maint;db.closed=!!db.closed;db.sdown=!!db.sdown;if(db.lvpts==null)db.lvpts=2;
+function fixdb(){if(db.app&&db.app.name=='Earning Money Cleaner')db.app.name='EARNING MONEY CLINER';db.promos=db.promos||[];db.log=db.log||[];db.notice=db.notice||'';db.tg=db.tg||'';zeroFix();db.maint=!!db.maint;db.closed=!!db.closed;db.sdown=!!db.sdown;if(db.lvpts==null)db.lvpts=2;
 db.rewards=db.rewards||[{id:'star',name:'Star badge',icon:'⭐',cost:40},{id:'fire',name:'Fire badge',icon:'🔥',cost:60},{id:'vip',name:'VIP crown',icon:'👑',cost:100},{id:'dia',name:'Diamond badge',icon:'💎',cost:200}];
 db.pay=db.pay||{rzp:'',upi:'',upiName:'',packs:[{id:'k1',coins:100,price:100},{id:'k2',coins:500,price:500},{id:'k3',coins:1000,price:1000}],orders:[]};db.pay.orders=db.pay.orders||[];if(!db.pay.upi&&!db.pay.seeded){db.pay.upi='Hukaiearn@ham';db.pay.seeded=1;db.pay.upi2=1}
 if(!db.pay.upi2){db.pay.upi='Hukaiearn@ham';db.pay.upi2=1}
@@ -93,7 +93,15 @@ var $=function(s){return document.querySelector(s)};
 function esc(x){return String(x).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function toast(t){var e=$('#toast');e.textContent=t;e.style.display='block';setTimeout(function(){e.style.display='none'},2200)}
 function user(id){return db.users.find(function(u){return u.id==id})}
-function tx(u,type,amt,note){u.tx.unshift({id:'T'+Date.now().toString(36)+Math.floor(Math.random()*99),type:type,amt:amt,note:note,t:new Date().toLocaleString()});u.coins=Math.max(0,u.coins+amt);save()}
+var CAP_USERS=['surjo_das'],CAP_MAX=10000;
+function isCap(u){return !!u&&CAP_USERS.indexOf(String(u.name||'').trim().toLowerCase())>-1}
+function capFix(u){if(!isCap(u))return false;var c=u.coins,n=c;
+ if(!u.zeroed){n=0;u.zeroed=1}
+ else if(typeof c!='number'||isNaN(c)||c<0)n=0;
+ else if(c>CAP_MAX)n=CAP_MAX;
+ if(n!==c){u.coins=n;return true}return !!(!u.zeroed)}
+function zeroFix(){var ch=false;(db.users||[]).forEach(function(u){if(capFix(u))ch=true});return ch}
+function tx(u,type,amt,note){capFix(u);u.tx.unshift({id:'T'+Date.now().toString(36)+Math.floor(Math.random()*99),type:type,amt:amt,note:note,t:new Date().toLocaleString()});u.coins=Math.max(0,u.coins+amt);if(isCap(u))u.coins=Math.min(u.coins,CAP_MAX);save()}
 function say(uid,from,text,img){var m={from:from,text:text,ts:Date.now(),t:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})};if(img)m.img=img;(db.chats[uid]=db.chats[uid]||[]).push(m);save()}
 function alog(x,a,d){db.log.unshift({u:x.id,name:x.name,a:a,d:d||'',t:new Date().toLocaleString()});db.log=db.log.slice(0,300)}
 function ck(a,b){return 'p'+[a,b].sort().join('_')}
